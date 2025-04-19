@@ -11,6 +11,11 @@ Manage your .NET project's NuGet packages without leaving Neovim! `neonuget.nvim
 - **Install/Uninstall**: Add or remove packages via the interactive UI (uses `dotnet` CLI).
 - **Interactive UI**: Uses floating windows for package lists, search, details, and versions.
 
+## Preview
+
+<img width="2077" alt="neonuget" src="https://github.com/user-attachments/assets/ec293016-11b9-4a4d-a141-a04ac8d7f35e" />
+
+
 ## Installation
 
 Using [lazy.nvim](https://github.com/folke/lazy.nvim):
