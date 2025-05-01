@@ -22,7 +22,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
-  "MonsieurTib/neonuget.nvim",
+  "MonsieurTib/neonuget",
   config = function()
     require("neonuget").setup({
       -- Optional configuration
