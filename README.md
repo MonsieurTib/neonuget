@@ -4,7 +4,7 @@ Manage your .NET project's NuGet packages without leaving Neovim! `neonuget.nvim
 
 ## Features
 
-- **List Packages**: View installed NuGet packages (top-level & transitive).
+- **List Packages**: View installed NuGet packages.
 - **Search Packages**: Search for available packages on NuGet.org.
 - **View Details**: Display metadata (description, author, license, etc.) for selected package versions.
 - **View Versions**: List all available versions for a package.
