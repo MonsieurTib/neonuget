@@ -4,6 +4,8 @@ local ftplugin = require("neonuget.ftplugin")
 
 local M = {}
 
+M._current_active_project = nil -- Stores the project path selected by the user for the current UI session
+
 M.config = {
 	dotnet_path = "dotnet",
 	default_project = nil,
@@ -21,32 +23,85 @@ function M.setup(opts)
 	end, {})
 end
 
-function M._get_project_or_notify()
+function M._get_active_project_or_notify()
+	if M._current_active_project and M._current_active_project ~= "" then
+		return M._current_active_project
+	end
+
 	local project_path = M.config.default_project or M._find_project()
 	if not project_path then
-		vim.notify("No .NET project found. Please specify a project path with :NuGetSetProject", vim.log.levels.ERROR)
+		vim.notify("No active .NET project. Please run :NuGet first or set `default_project`.", vim.log.levels.ERROR)
 		return nil
 	end
 	return project_path
 end
 
 function M.list_packages()
+	local active_project_path = M.config.default_project
+
+	if not active_project_path then
+		local all_projects = M._find_all_projects()
+
+		if #all_projects == 0 then
+			vim.notify("No .NET project found in the workspace.", vim.log.levels.ERROR)
+			M._current_active_project = nil
+			return
+		elseif #all_projects == 1 then
+			active_project_path = all_projects[1]
+		else
+			-- Multiple projects, prompt user
+			vim.ui.select(all_projects, { prompt = "Select a project:" }, function(choice)
+				if not choice then
+					vim.notify("Project selection cancelled.", vim.log.levels.INFO)
+					M._current_active_project = nil
+					return
+				end
+				M._current_active_project = choice
+				M._list_packages_for_project(choice)
+			end)
+			return
+		end
+	end
+
+	M._current_active_project = active_project_path
+	M._list_packages_for_project(active_project_path)
+end
+
+function M._list_packages_for_project(project_path)
 	M.refresh_packages(function(packages)
-		if packages == nil then
-			return
-		end
-
-		if #packages == 0 then
-			vim.notify("No packages found in the project.", vim.log.levels.WARN)
-			return
-		end
-
-		local windows = ui.display_dual_pane(packages, {})
+		local packages_to_display = packages or {}
+		local windows = ui.display_dual_pane(packages_to_display, { project_path = project_path })
 		if not windows then
 			vim.notify("Failed to create package viewer interface", vim.log.levels.ERROR)
-			return
 		end
-	end)
+	end, project_path) -- Pass project_path to refresh_packages
+end
+
+function M._find_all_projects()
+	local projects = {}
+	local patterns = { "*.csproj", "*.fsproj", "*.vbproj" }
+	local search_paths = { ".", "./*", "./*/*" }
+
+	for _, search_path_prefix in ipairs(search_paths) do
+		for _, pattern in ipairs(patterns) do
+			local glob_pattern = search_path_prefix .. "/" .. pattern
+			local found_files = vim.fn.globpath(".", glob_pattern, true, true, true)
+			for _, file_path in ipairs(found_files) do
+				local normalized_path = vim.fn.fnamemodify(file_path, ":.")
+				local already_added = false
+				for _, existing_proj in ipairs(projects) do
+					if existing_proj == normalized_path then
+						already_added = true
+						break
+					end
+				end
+				if not already_added and normalized_path ~= "" then
+					table.insert(projects, normalized_path)
+				end
+			end
+		end
+	end
+	return projects
 end
 
 function M._find_project()
@@ -105,7 +160,7 @@ function M._execute_command(command, callback)
 end
 
 function M.install_package(pkg_name, version, callback)
-	local project_path = M._get_project_or_notify()
+	local project_path = M._get_active_project_or_notify()
 	if not project_path then
 		if callback then
 			callback(false)
@@ -158,7 +213,7 @@ local function _restore_project(project_path, callback)
 end
 
 function M.uninstall_package(pkg_name, callback)
-	local project_path = M._get_project_or_notify()
+	local project_path = M._get_active_project_or_notify()
 	if not project_path then
 		if callback then
 			callback(false)
@@ -204,9 +259,18 @@ function M.uninstall_package(pkg_name, callback)
 	return true
 end
 
-function M.refresh_packages(callback)
-	local project_path = M._get_project_or_notify()
+function M.refresh_packages(callback, project_path_override)
+	local project_path = project_path_override
 	if not project_path then
+		project_path = M._get_active_project_or_notify()
+		if not project_path then
+			if callback then
+				callback(nil)
+			end
+			return
+		end
+	elseif project_path == "" then
+		vim.notify("Provided project path for refresh is invalid.", vim.log.levels.ERROR)
 		if callback then
 			callback(nil)
 		end
@@ -261,6 +325,8 @@ function M.refresh_packages(callback)
 			callback(packages)
 		end
 	end)
+
+	return true
 end
 
 return M
