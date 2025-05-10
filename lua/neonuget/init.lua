@@ -18,6 +18,20 @@ function M.setup(opts)
 
 	ftplugin.setup()
 
+	
+	local group = vim.api.nvim_create_augroup("NeoNuGetHighlights", { clear = true })
+	vim.api.nvim_create_autocmd("ColorScheme", {
+		group = group,
+		pattern = "*",
+		callback = function()
+			vim.api.nvim_set_hl(0, "NuGetDetailsLabel", { fg = "#34B3FA", bold = true })
+			
+		end,
+	})
+
+	
+	pcall(vim.api.nvim_set_hl, 0, "NuGetDetailsLabel", { fg = "#34B3FA", bold = true })
+
 	vim.api.nvim_create_user_command("NuGet", function()
 		M.list_packages()
 	end, {})
