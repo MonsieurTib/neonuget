@@ -10,6 +10,7 @@ Manage your .NET project's NuGet packages without leaving Neovim! `neonuget.nvim
 - **View Versions**: List all available versions for a package.
 - **Install/Uninstall**: Add or remove packages via the interactive UI (uses `dotnet` CLI).
 - **Interactive UI**: Uses floating windows for package lists, search, details, and versions.
+- **Multi project support**: Easily switch between .NET projects to manage their NuGet packages.
 
 ## Preview
 
