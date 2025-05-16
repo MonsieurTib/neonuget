@@ -179,17 +179,17 @@ function M.fetch_catalog_metadata(catalog_url, callback)
 			end
 		end
 
-		local metadata = {
-			description = catalog_data.description or "",
-			authors = catalog_data.authors or "",
-			published = catalog_data.published or "",
-			totalDownloads = catalog_data.totalDownloads or json_data.totalDownloads or 0,
-			tags = M.process_tags(catalog_data.tags),
-			projectUrl = catalog_data.projectUrl or "",
-			licenseUrl = catalog_data.licenseUrl or "",
-		}
+			local metadata = {
+				description = catalog_data.description or "",
+				authors = catalog_data.authors or "",
+				published = catalog_data.published or "",
+				totalDownloads = catalog_data.totalDownloads or json_data.totalDownloads or 0,
+				tags = M.process_tags(catalog_data.tags),
+				projectUrl = catalog_data.projectUrl or "",
+				licenseUrl = catalog_data.licenseUrl or "",
+			}
 
-		callback(metadata)
+			callback(metadata)
 	end, "Failed to fetch catalog metadata from " .. catalog_url)
 end
 
