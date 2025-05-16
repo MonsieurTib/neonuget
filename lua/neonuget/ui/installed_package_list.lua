@@ -12,6 +12,8 @@ function M.create(opts)
 	local row = opts.row or 0
 	local on_select = opts.on_select or function() end
 
+	local list_highlight_namespace_id = vim.api.nvim_create_namespace("neonuget_installed_list_highlights")
+
 	local function sort_packages(pkgs)
 		table.sort(pkgs, function(a, b)
 			return a.name < b.name
@@ -60,17 +62,27 @@ function M.create(opts)
 
 		local filtered_packages = filter_packages(search_term or "")
 		local list_content = {}
+		local line_highlights = {} -- To store highlight info
 		local new_package_lookup = {}
 		local new_package_indices = {}
 
 		for i, pkg in ipairs(filtered_packages) do
-			local line = pkg.name .. " (" .. pkg.resolved_version .. ")"
+			local base_line = pkg.name .. " (" .. pkg.resolved_version .. ")"
+			local full_line = base_line
 
 			if pkg.latest_version and pkg.latest_version ~= "" and pkg.latest_version ~= pkg.resolved_version then
-				line = line .. " -> " .. pkg.latest_version
+				local update_suffix = " -> " .. pkg.latest_version
+				full_line = base_line .. update_suffix
+
+				table.insert(line_highlights, {
+					line = #list_content, -- 0-indexed line for nvim_buf_add_highlight
+					start_col = string.len(base_line), -- 0-indexed start col of the suffix
+					end_col = string.len(full_line),   -- 0-indexed end col (exclusive) of the suffix
+					group = "NuGetUpdateAvailable",
+				})
 			end
 
-			table.insert(list_content, line)
+			table.insert(list_content, full_line)
 			new_package_lookup[i] = pkg
 			new_package_indices[#list_content] = i
 		end
@@ -81,6 +93,12 @@ function M.create(opts)
 
 		if comp.buf and vim.api.nvim_buf_is_valid(comp.buf) then
 			comp.set_lines(list_content)
+
+			-- Apply highlights
+			vim.api.nvim_buf_clear_namespace(comp.buf, list_highlight_namespace_id, 0, -1)
+			for _, hl in ipairs(line_highlights) do
+				vim.api.nvim_buf_add_highlight(comp.buf, list_highlight_namespace_id, hl.group, hl.line, hl.start_col, hl.end_col)
+			end
 		end
 
 		return new_package_lookup, new_package_indices

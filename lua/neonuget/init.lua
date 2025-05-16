@@ -25,12 +25,13 @@ function M.setup(opts)
 		pattern = "*",
 		callback = function()
 			vim.api.nvim_set_hl(0, "NuGetDetailsLabel", { fg = "#34B3FA", bold = true })
-			
+			vim.api.nvim_set_hl(0, "NuGetUpdateAvailable", { fg = "#A6E3A1", bold = true })
 		end,
 	})
 
 	
 	pcall(vim.api.nvim_set_hl, 0, "NuGetDetailsLabel", { fg = "#34B3FA", bold = true })
+	pcall(vim.api.nvim_set_hl, 0, "NuGetUpdateAvailable", { fg = "#A6E3A1", bold = true })
 
 	vim.api.nvim_create_user_command("NuGet", function()
 		M.list_packages()
@@ -291,12 +292,14 @@ function M.refresh_packages(callback, project_path_override)
 		return
 	end
 
-	local command = M.config.dotnet_path .. " list " .. project_path .. " package --include-transitive --format json"
-	M._execute_command(command, function(exitcode, output, stderr_data)
-		if exitcode ~= 0 then
-			local err_msg = table.concat(stderr_data, "\n")
+	-- Command 1: Get ALL installed packages
+	local list_all_command = M.config.dotnet_path .. " list " .. project_path .. " package --include-transitive --format json"
+
+	M._execute_command(list_all_command, function(exitcode_all, output_all, stderr_all)
+		if exitcode_all ~= 0 then
+			local err_msg_all = table.concat(stderr_all, "\n")
 			vim.notify(
-				"Failed to refresh packages: " .. (err_msg ~= "" and err_msg or "Exit code: " .. exitcode),
+				"Failed to list all packages: " .. (err_msg_all ~= "" and err_msg_all or "Exit code: " .. exitcode_all),
 				vim.log.levels.ERROR
 			)
 			if callback then
@@ -305,41 +308,76 @@ function M.refresh_packages(callback, project_path_override)
 			return
 		end
 
-		if not output or #output == 0 then
-			vim.notify("No output received from dotnet list package command.", vim.log.levels.ERROR)
+		if not output_all or #output_all == 0 then
+			vim.notify("No output received from list all packages command.", vim.log.levels.ERROR)
 			if callback then
 				callback(nil)
 			end
 			return
 		end
 
-		local json_str = table.concat(output, "")
+		local json_str_all = table.concat(output_all, "")
+		local parse_all_ok, all_installed_packages_result = pcall(nuget.parse_json_package_list, json_str_all)
 
-		local ok, packages = pcall(function()
-			return nuget.parse_json_package_list(json_str)
+		if not parse_all_ok then
+			vim.notify("Failed to parse list of all packages: " .. tostring(all_installed_packages_result), vim.log.levels.ERROR)
+			if callback then
+				callback(nil)
+			end
+			return
+		end
+
+		if not all_installed_packages_result then
+			vim.notify("Parsed list of all packages is unexpectedly nil.", vim.log.levels.ERROR)
+			if callback then
+				callback(nil)
+			end
+			return
+		end
+
+		-- Command 2: Get OUTDATED packages (for accurate latestVersion)
+		local list_outdated_command = M.config.dotnet_path .. " list " .. project_path .. " package --outdated --format json" -- No --include-transitive needed here, we only care about top-level latest versions.
+		M._execute_command(list_outdated_command, function(exitcode_outdated, output_outdated, stderr_outdated)
+			local outdated_packages_info = {} -- Store as a lookup table: { ["Package.Name"] = "LatestVersion", ... }
+
+			if exitcode_outdated == 0 and output_outdated and #output_outdated > 0 then
+				local json_str_outdated = table.concat(output_outdated, "")
+				local parse_outdated_ok, parsed_outdated_list = pcall(nuget.parse_json_package_list, json_str_outdated)
+
+				if parse_outdated_ok and parsed_outdated_list then
+					for _, pkg_outdated in ipairs(parsed_outdated_list) do
+						if pkg_outdated.name and pkg_outdated.latest_version and pkg_outdated.latest_version ~= "" then
+							outdated_packages_info[pkg_outdated.name] = pkg_outdated.latest_version
+						end
+					end
+				else
+					if not parse_outdated_ok then
+						vim.notify("Failed to parse outdated package list: " .. tostring(parsed_outdated_list) .. ". Update indicators may be inaccurate.", vim.log.levels.WARN)
+					else
+						vim.notify("Problem parsing outdated package list or no outdated packages found. Update indicators may be inaccurate.", vim.log.levels.INFO)
+					end
+				end
+			else
+				local err_msg_outdated = table.concat(stderr_outdated or {}, "\n")
+				vim.notify(
+					"Failed to fetch outdated package details (" .. (err_msg_outdated ~= "" and err_msg_outdated or "Exit code: " .. exitcode_outdated) .. "). Update indicators may be inaccurate.",
+					vim.log.levels.WARN
+				)
+			end
+
+			for _, pkg_installed in ipairs(all_installed_packages_result) do
+				if outdated_packages_info[pkg_installed.name] then
+					pkg_installed.latest_version = outdated_packages_info[pkg_installed.name]
+				else
+					pkg_installed.latest_version = pkg_installed.resolved_version
+				end
+			end
+
+			if callback then
+				callback(all_installed_packages_result)
+			end
 		end)
-
-		if not ok then
-			vim.notify("Failed to parse package list: " .. tostring(packages), vim.log.levels.ERROR)
-			if callback then
-				callback(nil)
-			end
-			return
-		end
-
-		if not packages then
-			vim.notify("No packages found in the project.", vim.log.levels.WARN)
-			if callback then
-				callback({})
-			end
-			return
-		end
-
-		if callback then
-			callback(packages)
-		end
 	end)
-
 	return true
 end
 
