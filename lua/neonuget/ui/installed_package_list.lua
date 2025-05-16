@@ -66,29 +66,34 @@ function M.create(opts)
 		local new_package_lookup = {}
 		local new_package_indices = {}
 
-		for i, pkg in ipairs(filtered_packages) do
-			local base_line = pkg.name .. " (" .. pkg.resolved_version .. ")"
-			local full_line = base_line
+		-- If we have no packages yet, show loading state
+		if #original_packages == 0 then
+			list_content = { "Loading installed packages..." }
+		else
+			for i, pkg in ipairs(filtered_packages) do
+				local base_line = pkg.name .. " (" .. pkg.resolved_version .. ")"
+				local full_line = base_line
 
-			if pkg.latest_version and pkg.latest_version ~= "" and pkg.latest_version ~= pkg.resolved_version then
-				local update_suffix = " -> " .. pkg.latest_version
-				full_line = base_line .. update_suffix
+				if pkg.latest_version and pkg.latest_version ~= "" and pkg.latest_version ~= pkg.resolved_version then
+					local update_suffix = " -> " .. pkg.latest_version
+					full_line = base_line .. update_suffix
 
-				table.insert(line_highlights, {
-					line = #list_content, -- 0-indexed line for nvim_buf_add_highlight
-					start_col = string.len(base_line), -- 0-indexed start col of the suffix
-					end_col = string.len(full_line),   -- 0-indexed end col (exclusive) of the suffix
-					group = "NuGetUpdateAvailable",
-				})
+					table.insert(line_highlights, {
+						line = #list_content, -- 0-indexed line for nvim_buf_add_highlight
+						start_col = string.len(base_line), -- 0-indexed start col of the suffix
+						end_col = string.len(full_line),   -- 0-indexed end col (exclusive) of the suffix
+						group = "NuGetUpdateAvailable",
+					})
+				end
+
+				table.insert(list_content, full_line)
+				new_package_lookup[i] = pkg
+				new_package_indices[#list_content] = i
 			end
 
-			table.insert(list_content, full_line)
-			new_package_lookup[i] = pkg
-			new_package_indices[#list_content] = i
-		end
-
-		if #filtered_packages == 0 then
-			list_content = { "No packages found matching: " .. (search_term or "") }
+			if #filtered_packages == 0 then
+				list_content = { "No packages found matching: " .. (search_term or "") }
+			end
 		end
 
 		if comp.buf and vim.api.nvim_buf_is_valid(comp.buf) then

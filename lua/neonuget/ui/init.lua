@@ -282,7 +282,7 @@ function M.display_dual_pane(packages, opts)
 	active_components.search = search
 
 	local package_list = package_list_component.create({
-		packages = packages,
+		packages = packages or {},
 		width = total_width,
 		height = installed_height,
 		col = col,
@@ -325,17 +325,8 @@ function M.display_dual_pane(packages, opts)
 	local available_package_list = available_package_list_component.create({
 		width = total_width,
 		height = available_height,
-		col = available_col,
-		row = available_row,
-		params = {
-			q = "",
-			prerelease = false,
-			semVerLevel = "2.0.0",
-			skip = 0,
-			take = 100,
-			sortBy = "totalDownloads",
-			count = true,
-		},
+		col = col,
+		row = (select(2, get_available_pos())),
 		on_select = function(pkg)
 			handle_package_selection(pkg)
 		end,
@@ -345,7 +336,10 @@ function M.display_dual_pane(packages, opts)
 			end
 		end,
 		on_tab = function()
-			if active_components.version_list then
+			if active_components.package_list then
+				reset_border_colors("package_list")
+				active_components.package_list.focus()
+			elseif active_components.version_list then
 				reset_border_colors("version_list")
 				active_components.version_list.focus()
 			elseif active_components.details then
@@ -368,6 +362,12 @@ function M.display_dual_pane(packages, opts)
 
 	active_components.available_package_list = available_package_list
 
+	-- Update package list with actual data if available
+	if packages then
+		package_list.update_packages(packages)
+	end
+
+	-- Focus search input by default
 	if active_components.search then
 		reset_border_colors("search")
 		active_components.search.activate()

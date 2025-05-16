@@ -83,13 +83,20 @@ function M.list_packages()
 end
 
 function M._list_packages_for_project(project_path)
+	-- Show UI immediately with loading states
+	local windows = ui.display_dual_pane({}, { project_path = project_path })
+	if not windows then
+		vim.notify("Failed to create package viewer interface", vim.log.levels.ERROR)
+		return
+	end
+
+	-- Fetch packages in the background
 	M.refresh_packages(function(packages)
 		local packages_to_display = packages or {}
-		local windows = ui.display_dual_pane(packages_to_display, { project_path = project_path })
-		if not windows then
-			vim.notify("Failed to create package viewer interface", vim.log.levels.ERROR)
+		if windows and windows.components and windows.components.package_list then
+			windows.components.package_list.update_packages(packages_to_display)
 		end
-	end, project_path) -- Pass project_path to refresh_packages
+	end, project_path)
 end
 
 function M._find_all_projects()
