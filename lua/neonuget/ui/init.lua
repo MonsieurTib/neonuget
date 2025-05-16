@@ -327,6 +327,14 @@ function M.display_dual_pane(packages, opts)
 		height = available_height,
 		col = col,
 		row = (select(2, get_available_pos())),
+		params = {
+			q = "",
+			take = 50,
+			prerelease = false,
+			semVerLevel = "2.0.0",
+			skip = 0,
+			sortBy = "relevance",
+		},
 		on_select = function(pkg)
 			handle_package_selection(pkg)
 		end,
