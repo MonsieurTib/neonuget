@@ -12,9 +12,14 @@ Manage your .NET project's NuGet packages without leaving Neovim! `neonuget.nvim
 - **Interactive UI**: Uses floating windows for package lists, search, details, and versions.
 - **Multi project support**: Easily switch between .NET projects to manage their NuGet packages.
 
-## Preview
+## Previews
 
-<img width="2077" alt="neonuget" src="https://github.com/user-attachments/assets/ec293016-11b9-4a4d-a141-a04ac8d7f35e" />
+<img width="1492" alt="neonuget2" src="https://github.com/user-attachments/assets/bc175a13-77df-45ea-a8c2-6a1da3ca9c12" />
+
+### Package uninstall
+
+<img width="1492" alt="neonuget3" src="https://github.com/user-attachments/assets/12554b95-1d65-49e6-ba42-e8a645c6b3f9" />
+
 
 
 ## Installation
