@@ -336,20 +336,15 @@ function M.display_dual_pane(packages, opts)
 			end
 		end,
 		on_tab = function()
-			if active_components.package_list then
-				reset_border_colors("package_list")
-				active_components.package_list.focus()
-			elseif active_components.version_list then
+			if active_components.version_list then
 				reset_border_colors("version_list")
 				active_components.version_list.focus()
 			elseif active_components.details then
 				reset_border_colors("details")
 				active_components.details.focus()
-			else
-				if active_components.search then
-					reset_border_colors("search")
-					active_components.search.activate()
-				end
+			elseif active_components.search then
+				reset_border_colors("search")
+				active_components.search.activate()
 			end
 		end,
 		on_close = close_all_components,
