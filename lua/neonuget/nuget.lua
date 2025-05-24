@@ -9,7 +9,7 @@ else
 end
 
 local NUGET_API_BASE_URL = "https://api.nuget.org/v3-flatcontainer/"
-local NUGET_REGISTRATION_BASE_URL = "https://api.nuget.org/v3/registration5-semver1/"
+local NUGET_REGISTRATION_BASE_URL = "https://api.nuget.org/v3/registration5-gz-semver2/"
 local NUGET_SEARCH_BASE_URL = "https://azuresearch-usnc.nuget.org/query"
 
 local function make_request(url, callback, error_message)
@@ -47,24 +47,262 @@ function M.fetch_package_versions(package_id, callback)
 		return
 	end
 
-	local url = NUGET_API_BASE_URL .. string.lower(package_id) .. "/index.json"
+	local url = NUGET_REGISTRATION_BASE_URL .. string.lower(package_id) .. "/index.json"
 	make_request(url, function(body, err)
 		if err then
-			vim.notify("Could not fetch package information", vim.log.levels.ERROR)
+			vim.notify("Could not fetch package information: " .. err, vim.log.levels.ERROR)
 			callback(nil)
 			return
 		end
 
-		local ok, parsed_info = pcall(M.parse_package_info, body)
+		local ok, parsed_info = pcall(vim.fn.json_decode, body)
 
 		if not ok or not parsed_info then
-			vim.notify("Failed to parse package info", vim.log.levels.ERROR)
+			vim.notify("Failed to parse package info JSON", vim.log.levels.ERROR)
 			callback(nil)
 			return
 		end
 
-		callback(parsed_info)
+		if parsed_info and parsed_info.items and #parsed_info.items > 0 then
+			local versions = {}
+			local version_pages = parsed_info.items
+
+			local has_nested_items = false
+			for _, page in ipairs(version_pages) do
+				if page.items and #page.items > 0 then
+					has_nested_items = true
+					for _, item in ipairs(page.items) do
+						if item.catalogEntry and item.catalogEntry.version then
+							table.insert(versions, item.catalogEntry.version)
+						end
+					end
+				else
+					table.insert(versions, {
+						lower = page.lower,
+						upper = page.upper,
+						page_url = page["@id"],
+					})
+				end
+			end
+
+			if has_nested_items then
+				callback(versions)
+			else
+				M.fetch_version_pages(versions, callback)
+			end
+		else
+			local fallback_url = NUGET_API_BASE_URL .. string.lower(package_id) .. "/index.json"
+			make_request(fallback_url, function(fallback_body, fallback_err)
+				if fallback_err then
+					vim.notify("Could not fetch package information using fallback", vim.log.levels.ERROR)
+					callback(nil)
+					return
+				end
+
+				local fallback_ok, fallback_data = pcall(M.parse_package_info, fallback_body)
+				if not fallback_ok or not fallback_data then
+					vim.notify("Failed to parse package info with fallback method", vim.log.levels.ERROR)
+					callback(nil)
+					return
+				end
+
+				callback(fallback_data)
+			end)
+		end
 	end, "Failed to fetch package versions for " .. package_id)
+end
+
+function M.fetch_all_package_versions(package_id, callback)
+	if not package_id or package_id == "" then
+		vim.notify("Invalid package ID provided", vim.log.levels.ERROR)
+		callback(nil)
+		return
+	end
+
+	local url = NUGET_REGISTRATION_BASE_URL .. string.lower(package_id) .. "/index.json"
+	make_request(url, function(body, err)
+		if err then
+			vim.notify("Could not fetch package information: " .. err, vim.log.levels.ERROR)
+			callback(nil)
+			return
+		end
+
+		local ok, parsed_info = pcall(vim.fn.json_decode, body)
+
+		if not ok or not parsed_info then
+			vim.notify("Failed to parse package info JSON", vim.log.levels.ERROR)
+			callback(nil)
+			return
+		end
+
+		if parsed_info and parsed_info.items and #parsed_info.items > 0 then
+			local version_infos = {}
+			local version_pages = parsed_info.items
+
+			local has_nested_items = false
+			for _, page in ipairs(version_pages) do
+				if page.items and #page.items > 0 then
+					has_nested_items = true
+					for _, item in ipairs(page.items) do
+						if item.catalogEntry then
+							local catalog_entry = item.catalogEntry
+							local version_info = {
+								version = catalog_entry.version or "",
+								description = catalog_entry.description or "",
+								authors = catalog_entry.authors or "",
+								published = catalog_entry.published or "",
+								totalDownloads = catalog_entry.totalDownloads or 0,
+								tags = M.process_tags(catalog_entry.tags),
+								projectUrl = catalog_entry.projectUrl or "",
+								licenseUrl = catalog_entry.licenseUrl or "",
+								dependencies = catalog_entry.dependencyGroups or {},
+							}
+							table.insert(version_infos, version_info)
+						end
+					end
+				end
+			end
+
+			if has_nested_items then
+				callback(version_infos)
+			else
+				local pages_to_fetch = {}
+				for _, page in ipairs(version_pages) do
+					if page["@id"] then
+						table.insert(pages_to_fetch, {
+							url = page["@id"],
+							lower = page.lower,
+							upper = page.upper,
+						})
+					end
+				end
+
+				if #pages_to_fetch > 0 then
+					M.fetch_version_pages_with_metadata(pages_to_fetch, callback)
+				else
+					M.fallback_fetch_versions(package_id, callback)
+				end
+			end
+		else
+			M.fallback_fetch_versions(package_id, callback)
+		end
+	end, "Failed to fetch package versions for " .. package_id)
+end
+
+function M.fallback_fetch_versions(package_id, callback)
+	local fallback_url = NUGET_API_BASE_URL .. string.lower(package_id) .. "/index.json"
+	make_request(fallback_url, function(fallback_body, fallback_err)
+		if fallback_err then
+			vim.notify("Could not fetch package information using fallback", vim.log.levels.ERROR)
+			callback(nil)
+			return
+		end
+
+		local fallback_ok, versions = pcall(M.parse_package_info, fallback_body)
+		if not fallback_ok or not versions then
+			vim.notify("Failed to parse package info with fallback method", vim.log.levels.ERROR)
+			callback(nil)
+			return
+		end
+
+		local version_infos = {}
+		for _, version_str in ipairs(versions) do
+			table.insert(version_infos, {
+				version = version_str,
+				description = "No description available",
+				authors = "Unknown",
+				published = "",
+				totalDownloads = 0,
+				tags = {},
+				projectUrl = "",
+				licenseUrl = "",
+			})
+		end
+
+		callback(version_infos)
+	end)
+end
+
+function M.fetch_version_pages_with_metadata(version_pages, callback)
+	if not version_pages or #version_pages == 0 then
+		callback({})
+		return
+	end
+
+	local version_infos = {}
+	local pending_requests = #version_pages
+
+	for _, page in ipairs(version_pages) do
+		make_request(page.url, function(body, err)
+			pending_requests = pending_requests - 1
+
+			if not err and body then
+				local ok, page_data = pcall(vim.fn.json_decode, body)
+				if ok and page_data then
+					if page_data.items and #page_data.items > 0 then
+						for _, item in ipairs(page_data.items) do
+							if item.catalogEntry then
+								local catalog_entry = item.catalogEntry
+								local version_info = {
+									version = catalog_entry.version or "",
+									description = catalog_entry.description or "",
+									authors = catalog_entry.authors or "",
+									published = catalog_entry.published or "",
+									totalDownloads = catalog_entry.totalDownloads or 0,
+									tags = M.process_tags(catalog_entry.tags),
+									projectUrl = catalog_entry.projectUrl or "",
+									licenseUrl = catalog_entry.licenseUrl or "",
+									dependencies = catalog_entry.dependencyGroups or {},
+								}
+								table.insert(version_infos, version_info)
+							elseif item.version or item["@id"] then
+								local version_info = {
+									version = item.version or "",
+									description = item.description or "",
+									authors = item.authors or "",
+									published = item.published or "",
+									totalDownloads = item.totalDownloads or 0,
+									tags = M.process_tags(item.tags),
+									projectUrl = item.projectUrl or "",
+									licenseUrl = item.licenseUrl or "",
+								}
+								table.insert(version_infos, version_info)
+							end
+						end
+					elseif page_data.version then
+						local version_info = {
+							version = page_data.version or "",
+							description = page_data.description or "",
+							authors = page_data.authors or "",
+							published = page_data.published or "",
+							totalDownloads = page_data.totalDownloads or 0,
+							tags = M.process_tags(page_data.tags),
+							projectUrl = page_data.projectUrl or "",
+							licenseUrl = page_data.licenseUrl or "",
+						}
+						table.insert(version_infos, version_info)
+					end
+				end
+			end
+
+			if pending_requests == 0 then
+				table.sort(version_infos, function(a, b)
+					return a.version > b.version
+				end)
+
+				local unique_versions = {}
+				local seen = {}
+				for _, v in ipairs(version_infos) do
+					if v.version and v.version ~= "" and not seen[v.version] then
+						seen[v.version] = true
+						table.insert(unique_versions, v)
+					end
+				end
+
+				callback(unique_versions)
+			end
+		end, "Failed to fetch version page: " .. page.url)
+	end
 end
 
 function M.parse_package_info(json_str)
@@ -179,17 +417,17 @@ function M.fetch_catalog_metadata(catalog_url, callback)
 			end
 		end
 
-			local metadata = {
-				description = catalog_data.description or "",
-				authors = catalog_data.authors or "",
-				published = catalog_data.published or "",
-				totalDownloads = catalog_data.totalDownloads or json_data.totalDownloads or 0,
-				tags = M.process_tags(catalog_data.tags),
-				projectUrl = catalog_data.projectUrl or "",
-				licenseUrl = catalog_data.licenseUrl or "",
-			}
+		local metadata = {
+			description = catalog_data.description or "",
+			authors = catalog_data.authors or "",
+			published = catalog_data.published or "",
+			totalDownloads = catalog_data.totalDownloads or json_data.totalDownloads or 0,
+			tags = M.process_tags(catalog_data.tags),
+			projectUrl = catalog_data.projectUrl or "",
+			licenseUrl = catalog_data.licenseUrl or "",
+		}
 
-			callback(metadata)
+		callback(metadata)
 	end, "Failed to fetch catalog metadata from " .. catalog_url)
 end
 

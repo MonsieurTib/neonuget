@@ -128,14 +128,19 @@ function M.display_dual_pane(packages, opts)
 			height = versions_height,
 			col = versions_col,
 			row = versions_row,
-			on_select = function(version)
+			on_select = function(version, metadata)
 				if active_components.details then
 					active_components.details.set_loading(version)
-					nuget.fetch_package_metadata(pkg.name, version, function(metadata)
-						if active_components.details then
-							active_components.details.update(metadata, version)
-						end
-					end)
+
+					if metadata then
+						active_components.details.update(metadata, version)
+					else
+						nuget.fetch_package_metadata(pkg.name, version, function(api_metadata)
+							if active_components.details then
+								active_components.details.update(api_metadata, version)
+							end
+						end)
+					end
 				end
 			end,
 			on_enter = function()
@@ -211,10 +216,19 @@ function M.display_dual_pane(packages, opts)
 		end
 		active_components.details = details
 
-		nuget.fetch_package_versions(pkg.name, function(versions_array)
+		nuget.fetch_all_package_versions(pkg.name, function(versions_array)
 			if not versions_array or #versions_array == 0 then
 				vim.notify("No versions found for " .. pkg.name .. " during UI init", vim.log.levels.WARN)
 				return
+			end
+
+			local version_info_map = {}
+			for _, version_info in ipairs(versions_array) do
+				version_info_map[version_info.version] = version_info
+			end
+
+			if active_components.version_list then
+				active_components.version_list.version_info_map = version_info_map
 			end
 
 			if active_components.version_list then
@@ -222,17 +236,16 @@ function M.display_dual_pane(packages, opts)
 			end
 
 			local initial_version = pkg.resolved_version
-			if not initial_version and versions_array and #versions_array > 0 then
-				initial_version = versions_array[#versions_array]
+			if not initial_version and #versions_array > 0 then
+				initial_version = versions_array[1].version
 			end
 
 			if initial_version and active_components.details then
 				active_components.details.set_loading(initial_version)
-				nuget.fetch_package_metadata(pkg.name, initial_version, function(metadata)
-					if active_components.details then
-						active_components.details.update(metadata, initial_version)
-					end
-				end)
+				local metadata = version_info_map[initial_version]
+				if metadata then
+					active_components.details.update(metadata, initial_version)
+				end
 			end
 		end)
 
@@ -365,12 +378,10 @@ function M.display_dual_pane(packages, opts)
 
 	active_components.available_package_list = available_package_list
 
-	-- Update package list with actual data if available
 	if packages then
 		package_list.update_packages(packages)
 	end
 
-	-- Focus search input by default
 	if active_components.search then
 		reset_border_colors("search")
 		active_components.search.activate()
@@ -432,15 +443,19 @@ function M.display_package_details_split(pkg, metadata)
 		height = versions_height,
 		col = col,
 		row = row,
-		on_select = function(version)
+		on_select = function(version, metadata)
 			if active_components.details then
 				active_components.details.set_loading(version)
 
-				nuget.fetch_package_metadata(pkg.name, version, function(ver_metadata)
-					if active_components.details then
-						active_components.details.update(ver_metadata, version)
-					end
-				end)
+				if metadata then
+					active_components.details.update(metadata, version)
+				else
+					nuget.fetch_package_metadata(pkg.name, version, function(ver_metadata)
+						if active_components.details then
+							active_components.details.update(ver_metadata, version)
+						end
+					end)
+				end
 			end
 		end,
 		on_enter = function()
@@ -491,10 +506,19 @@ function M.display_package_details_split(pkg, metadata)
 		details.update(metadata, pkg.resolved_version)
 	end
 
-	nuget.fetch_package_versions(pkg.name, function(versions_array)
+	nuget.fetch_all_package_versions(pkg.name, function(versions_array)
 		if not versions_array or #versions_array == 0 then
 			vim.notify("No versions found for " .. pkg.name .. " during UI init", vim.log.levels.WARN)
 			return
+		end
+
+		local version_info_map = {}
+		for _, version_info in ipairs(versions_array) do
+			version_info_map[version_info.version] = version_info
+		end
+
+		if active_components.version_list then
+			active_components.version_list.version_info_map = version_info_map
 		end
 
 		if active_components.version_list then
@@ -502,17 +526,17 @@ function M.display_package_details_split(pkg, metadata)
 		end
 
 		local initial_version = pkg.resolved_version
-		if not initial_version and versions_array and #versions_array > 0 then
-			initial_version = versions_array[#versions_array]
+		if not initial_version and #versions_array > 0 then
+			initial_version = versions_array[1].version -- Newest version first
 		end
 
 		if initial_version and active_components.details and not metadata then
 			active_components.details.set_loading(initial_version)
-			nuget.fetch_package_metadata(pkg.name, initial_version, function(metadata)
-				if active_components.details then
-					active_components.details.update(metadata, initial_version)
-				end
-			end)
+
+			local version_metadata = version_info_map[initial_version]
+			if version_metadata then
+				active_components.details.update(version_metadata, initial_version)
+			end
 		end
 	end)
 

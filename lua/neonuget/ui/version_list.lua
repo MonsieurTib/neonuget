@@ -60,22 +60,71 @@ function M.create(opts)
 
 		version_data = {}
 		current_line = 1
-		for i = #versions_array, 1, -1 do
-			local version = versions_array[i]
+
+		local standardized_versions = {}
+		for i, v in ipairs(versions_array) do
+			local version_text
+			local version_obj = {}
+
+			if type(v) == "string" then
+				-- Simple string version
+				version_text = v
+				version_obj = { version = v }
+			elseif type(v) == "table" then
+				if v.text then
+					version_text = v.text
+					version_obj = v.data or v
+				elseif v.version then
+					version_text = v.version
+					version_obj = v
+				else
+					vim.notify("Unknown version format: " .. vim.inspect(v), vim.log.levels.DEBUG)
+					goto continue
+				end
+			else
+				vim.notify("Unknown version type: " .. type(v), vim.log.levels.DEBUG)
+				goto continue
+			end
+
+			if not version_text or version_text == "" then
+				goto continue
+			end
+
+			table.insert(standardized_versions, {
+				text = version_text,
+				data = version_obj,
+			})
+
+			::continue::
+		end
+
+		table.sort(standardized_versions, function(a, b)
+			return a.text > b.text
+		end)
+
+		for i, v in ipairs(standardized_versions) do
+			local version = v.text
+			local version_info = v.data
 			local line_num = #content + 1
-			local version_text = version
+
+			local display_text = version
 
 			if version == pkg.resolved_version then
-				version_text = version_text .. " (current)"
+				display_text = display_text .. " (current)"
 				current_line = line_num
 			end
 
-			if i == #versions_array then
-				version_text = version_text .. " (latest)"
+			if i == 1 then
+				display_text = display_text .. " (latest)"
 			end
 
-			table.insert(content, version_text)
+			table.insert(content, display_text)
 			version_data[line_num] = version
+
+			if not component.version_info_map then
+				component.version_info_map = {}
+			end
+			component.version_info_map[version] = version_info
 		end
 
 		vim.api.nvim_buf_set_option(component.buf, "modifiable", true)
@@ -170,7 +219,7 @@ function M.create(opts)
 									end
 
 									if pkg_name == pkg.name then
-										nuget.fetch_package_versions(pkg.name, function(versions_array)
+										nuget.fetch_all_package_versions(pkg.name, function(versions_array)
 											if active_components and active_components.version_list then
 												active_components.version_list.update(versions_array)
 											end
