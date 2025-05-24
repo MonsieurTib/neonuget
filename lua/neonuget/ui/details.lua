@@ -104,6 +104,7 @@ function M.create(opts)
 			return
 		end
 
+		local catalog_entry = metadata.catalogEntry
 		local content = {}
 		local highlights = {}
 		local namespace_id = vim.api.nvim_create_namespace("neonuget_details_labels")
@@ -141,30 +142,92 @@ function M.create(opts)
 			table.insert(content, "")
 		end
 
-		add_description(metadata.description)
-		add_section("Authors", metadata.authors)
+		local description = metadata.description
+		if (not description or description == "") and catalog_entry then
+			description = catalog_entry.description
+		end
+		add_description(description)
+
+		local authors = metadata.authors
+		if (not authors or authors == "") and catalog_entry then
+			authors = catalog_entry.authors
+		end
+		add_section("Authors", authors)
+
+		local published = metadata.published
+		if (not published or published == "") and catalog_entry then
+			published = catalog_entry.published
+		end
 
 		local published_date_str = "Unknown"
-		if metadata.published and metadata.published ~= "" then
-			local year, month, day = metadata.published:match("(%d+)-(%d+)-(%d+)")
+		if published and published ~= "" then
+			local year, month, day = published:match("(%d+)-(%d+)-(%d+)")
 			if year and month and day then
 				published_date_str = year .. "-" .. month .. "-" .. day
 			end
 		end
 		add_section("Published", published_date_str)
 
+		local tags = metadata.tags
+		if (not tags or (type(tags) == "table" and #tags == 0)) and catalog_entry then
+			tags = catalog_entry.tags
+		end
+
 		local tags_str = ""
-		if metadata.tags and type(metadata.tags) == "table" and #metadata.tags > 0 then
-			tags_str = table.concat(metadata.tags, ", ")
-		elseif metadata.tags and type(metadata.tags) == "string" and metadata.tags ~= "" then
-			tags_str = metadata.tags
+		if tags and type(tags) == "table" and #tags > 0 then
+			tags_str = table.concat(tags, ", ")
+		elseif tags and type(tags) == "string" and tags ~= "" then
+			tags_str = tags
 		end
 		if tags_str ~= "" then
 			add_section("Tags", tags_str)
 		end
 
-		add_section("Project", metadata.projectUrl)
-		add_section("License", metadata.licenseUrl)
+		local project_url = metadata.projectUrl
+		if (not project_url or project_url == "") and catalog_entry then
+			project_url = catalog_entry.projectUrl
+		end
+		add_section("Project", project_url)
+
+		local license_url = metadata.licenseUrl
+		if (not license_url or license_url == "") and catalog_entry then
+			license_url = catalog_entry.licenseUrl
+		end
+		add_section("License", license_url)
+
+		local download_count = metadata.totalDownloads
+		if (not download_count or download_count == 0) and catalog_entry then
+			download_count = catalog_entry.totalDownloads or catalog_entry.downloadCount
+		end
+		if download_count and download_count > 0 then
+			add_section("Total Downloads", tostring(download_count))
+		end
+
+		local dependencies = metadata.dependencies
+		if (not dependencies or (type(dependencies) == "table" and #dependencies == 0)) and catalog_entry then
+			dependencies = catalog_entry.dependencyGroups
+		end
+
+		if dependencies and type(dependencies) == "table" and #dependencies > 0 then
+			local line_num = #content
+			table.insert(content, "Dependencies:")
+			table.insert(highlights, { line = line_num, group = "NuGetDetailsLabel" })
+
+			for _, dep_group in ipairs(dependencies) do
+				local framework = dep_group.targetFramework or "Any"
+				if dep_group.dependencies and #dep_group.dependencies > 0 then
+					table.insert(content, "  Framework: " .. framework)
+					for _, dep in ipairs(dep_group.dependencies) do
+						local dep_str = "    - " .. dep.id
+						if dep.range and dep.range ~= "" then
+							dep_str = dep_str .. " (" .. dep.range .. ")"
+						end
+						table.insert(content, dep_str)
+					end
+				end
+			end
+			table.insert(content, "")
+		end
 
 		vim.api.nvim_buf_set_option(buf, "modifiable", true)
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
