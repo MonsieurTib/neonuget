@@ -190,7 +190,7 @@ function M.install_package(pkg_name, version, callback)
 		return
 	end
 
-	local command = M.config.dotnet_path .. " add " .. project_path .. " package " .. pkg_name
+	local command = M.config.dotnet_path .. " add \"" .. project_path .. "\" package " .. pkg_name
 	if version then
 		command = command .. " --version " .. version
 	end
@@ -214,7 +214,7 @@ function M.install_package(pkg_name, version, callback)
 end
 
 local function _restore_project(project_path, callback)
-	local restore_command = M.config.dotnet_path .. " restore " .. project_path
+	local restore_command = M.config.dotnet_path .. " restore \"" .. project_path .. "\""
 	M._execute_command(restore_command, function(exitcode, _, stderr_data)
 		if exitcode ~= 0 then
 			local err_msg = table.concat(stderr_data, "\n")
@@ -243,7 +243,7 @@ function M.uninstall_package(pkg_name, callback)
 		return false
 	end
 
-	local command = M.config.dotnet_path .. " remove " .. project_path .. " package " .. pkg_name
+	local command = M.config.dotnet_path .. " remove \"" .. project_path .. "\" package " .. pkg_name
 
 	M._execute_command(command, function(exitcode, _, stderr_data)
 		if exitcode ~= 0 then
@@ -300,7 +300,7 @@ function M.refresh_packages(callback, project_path_override)
 	end
 
 	-- Command 1: Get ALL installed packages
-	local list_all_command = M.config.dotnet_path .. " list " .. project_path .. " package --include-transitive --format json"
+	local list_all_command = M.config.dotnet_path .. " list \"" .. project_path .. "\" package --include-transitive --format json"
 
 	M._execute_command(list_all_command, function(exitcode_all, output_all, stderr_all)
 		if exitcode_all ~= 0 then
@@ -343,7 +343,7 @@ function M.refresh_packages(callback, project_path_override)
 		end
 
 		-- Command 2: Get OUTDATED packages (for accurate latestVersion)
-		local list_outdated_command = M.config.dotnet_path .. " list " .. project_path .. " package --outdated --format json" -- No --include-transitive needed here, we only care about top-level latest versions.
+		local list_outdated_command = M.config.dotnet_path .. " list \"" .. project_path .. "\" package --outdated --format json" -- No --include-transitive needed here, we only care about top-level latest versions.
 		M._execute_command(list_outdated_command, function(exitcode_outdated, output_outdated, stderr_outdated)
 			local outdated_packages_info = {} -- Store as a lookup table: { ["Package.Name"] = "LatestVersion", ... }
 
