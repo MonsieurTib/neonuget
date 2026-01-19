@@ -10,6 +10,40 @@ local nuget = require("neonuget.nuget")
 
 utils.setup_highlights()
 
+function M.is_open()
+	local active_components = _G.active_components
+	if not active_components then
+		return false
+	end
+	-- Check if any component has a valid window
+	for name, component in pairs(active_components) do
+		if component and component.win and vim.api.nvim_win_is_valid(component.win) then
+			return true
+		end
+	end
+	return false
+end
+
+function M.close()
+	local active_components = _G.active_components
+	if not active_components then
+		return
+	end
+
+	for _, component in pairs(active_components) do
+		if component and component.close then
+			component.close()
+		end
+	end
+
+	utils.close_windows_by_pattern({
+		"NuGet_Package_Versions_",
+		"NuGet_Package_Details_",
+	})
+
+	_G.active_components = nil
+end
+
 function M.display_dual_pane(packages, opts)
 	opts = opts or {}
 
