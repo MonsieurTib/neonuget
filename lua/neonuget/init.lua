@@ -34,7 +34,11 @@ function M.setup(opts)
 	pcall(vim.api.nvim_set_hl, 0, "NuGetUpdateAvailable", { fg = "#A6E3A1", bold = true })
 
 	vim.api.nvim_create_user_command("NuGet", function()
-		M.list_packages()
+		if ui.is_open() then
+			ui.close()
+		else
+			M.list_packages()
+		end
 	end, {})
 end
 
