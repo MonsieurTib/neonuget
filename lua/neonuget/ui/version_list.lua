@@ -268,6 +268,8 @@ function M.create(opts)
 
 	component.setup_key_handlers()
 
+	utils.setup_section_navigation(component.buf)
+
 	return component
 end
 

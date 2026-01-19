@@ -146,6 +146,8 @@ function M.create(opts)
 		},
 	})
 
+	utils.setup_section_navigation(component.buf)
+
 	fetch_packages(component)
 
 	component.update_params = function(new_params)

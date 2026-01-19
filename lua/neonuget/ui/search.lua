@@ -71,6 +71,8 @@ function M.create(opts)
 		return nil
 	end
 
+	utils.setup_section_navigation(component.buf)
+
 	local search_timer = nil
 	local last_search_term = nil
 

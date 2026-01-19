@@ -206,6 +206,8 @@ function M.create(opts)
 		},
 	})
 
+	utils.setup_section_navigation(component.buf)
+
 	package_lookup, package_indices = update_list_display("", component)
 
 	if #top_level_packages > 0 and package_lookup[1] then

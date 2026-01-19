@@ -85,6 +85,8 @@ function M.create(opts)
 		},
 	})
 
+	utils.setup_section_navigation(component.buf)
+
 	update_with_metadata = function(metadata, version)
 		if not component.buf or not vim.api.nvim_buf_is_valid(component.buf) then
 			return

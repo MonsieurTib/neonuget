@@ -71,10 +71,11 @@ Opens the main interactive UI. Lists installed packages and allows searching, in
 3. **Navigate Lists:** Use arrow keys (`j`/`k`) to move up/down in the package lists (Installed/Available/Versions).
 4. **Select Package:** Press `<Enter>` on a package (either installed or available) to view its versions and details in the right-hand panes.
 5. **Switch Focus:** Use `<Tab>` to cycle focus between the interactive panes (Search, Installed List, Available List, Versions List, Details Pane).
-6. **Search:** Focus the search input (top-left) and type to filter installed packages and search available packages simultaneously.
-7. **Install Package:** While the Versions list is focused, press `i` to install the currently selected version.
-8. **Uninstall Package:** While the Installed Packages list is focused, press `dd` (or configure another key) to uninstall the selected top-level package.
-9. **Close:** Press `q` or `<Esc>` in any pane to close the UI.
+6. **Quick Navigation:** Press `1`-`5` to jump directly to a section: `1`=Search, `2`=Installed, `3`=Available, `4`=Versions, `5`=Details.
+7. **Search:** Focus the search input (top-left) and type to filter installed packages and search available packages simultaneously.
+8. **Install Package:** While the Versions list is focused, press `i` to install the currently selected version.
+9. **Uninstall Package:** While the Installed Packages list is focused, press `dd` (or configure another key) to uninstall the selected top-level package.
+10. **Close:** Press `q` or `<Esc>` in any pane to close the UI.
 
 ## Requirements
 
