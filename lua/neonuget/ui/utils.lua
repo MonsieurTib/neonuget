@@ -85,6 +85,25 @@ function M.create_background()
 				vim.api.nvim_win_close(background_win, true)
 			end
 		end,
+		resize = function()
+			if background_win and vim.api.nvim_win_is_valid(background_win) then
+				vim.api.nvim_buf_set_option(background_buf, "modifiable", true)
+				local bg_lines = {}
+				for _ = 1, vim.o.lines do
+					table.insert(bg_lines, string.rep(" ", vim.o.columns))
+				end
+				vim.api.nvim_buf_set_lines(background_buf, 0, -1, false, bg_lines)
+				vim.api.nvim_buf_set_option(background_buf, "modifiable", false)
+
+				vim.api.nvim_win_set_config(background_win, {
+					relative = "editor",
+					width = vim.o.columns,
+					height = vim.o.lines,
+					col = 0,
+					row = 0,
+				})
+			end
+		end,
 	}
 end
 
