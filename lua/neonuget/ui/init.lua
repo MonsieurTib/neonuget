@@ -72,7 +72,11 @@ function M.display_dual_pane(packages, opts)
 		end
 	end
 
+	local resize_augroup = vim.api.nvim_create_augroup("NuGetResize", { clear = true })
+
 	local function close_all_components()
+		vim.api.nvim_clear_autocmds({ group = resize_augroup })
+
 		for _, component in pairs(active_components) do
 			if component and component.close then
 				component.close()
@@ -85,20 +89,100 @@ function M.display_dual_pane(packages, opts)
 		})
 	end
 
-	local function expand_to_full_width()
+	local function recalculate_layout()
+		local dims = utils.calculate_centered_dimensions(0.8, 0.8)
+		local tw = dims.width
+		local th = dims.height
+		local c = dims.col
+		local r = dims.row
+
+		local m = 2
+		local lw = math.floor(tw * 0.4)
+		local dw = tw - lw - 1 - m
+		local sh = 1
+		local vh = math.floor(th * 0.3)
+		local dh = th - vh - 1 - m
+		local rph = vh + dh + 1 + m
+		local lph = rph
+		local lch = lph - sh - m * 2 - 2
+		local ih = math.floor(lch * 0.5)
+		local ah = lch - ih
+
+		return {
+			total_width = tw,
+			total_height = th,
+			col = c,
+			row = r,
+			margin = m,
+			list_width = lw,
+			details_width = dw,
+			search_height = sh,
+			versions_height = vh,
+			details_height = dh,
+			installed_height = ih,
+			available_height = ah,
+			search_col = c,
+			search_row = r,
+			installed_col = c,
+			installed_row = r + sh + 1 + m,
+			available_col = c,
+			available_row = r + sh + 1 + m + ih + m + 1,
+			versions_col = c + lw + 1 + m,
+			versions_row = r,
+			details_col = c + lw + 1 + m,
+			details_row = r + vh + 1 + m,
+		}
+	end
+
+	local function resize_all_components()
+		local layout = recalculate_layout()
+
+		if active_components.background and active_components.background.resize then
+			active_components.background.resize()
+		end
+
+		local has_right_pane = active_components.version_list ~= nil or active_components.details ~= nil
+		local list_pane_width = has_right_pane and layout.list_width or layout.total_width
+
 		if active_components.search then
-			local search_col, search_row = get_search_pos()
-			active_components.search.resize(list_width, search_height, search_col, search_row)
+			active_components.search.resize(layout.list_width, layout.search_height, layout.search_col, layout.search_row)
 		end
 
 		if active_components.package_list then
-			local installed_col, installed_row = get_installed_pos()
-			active_components.package_list.resize(total_width, installed_height, installed_col, installed_row)
+			active_components.package_list.resize(list_pane_width, layout.installed_height, layout.installed_col, layout.installed_row)
 		end
 
 		if active_components.available_package_list then
-			local available_col, available_row = get_available_pos()
-			active_components.available_package_list.resize(total_width, available_height, available_col, available_row)
+			active_components.available_package_list.resize(list_pane_width, layout.available_height, layout.available_col, layout.available_row)
+		end
+
+		if active_components.version_list then
+			active_components.version_list.resize(layout.details_width, layout.versions_height, layout.versions_col, layout.versions_row)
+		end
+
+		if active_components.details then
+			active_components.details.resize(layout.details_width, layout.details_height, layout.details_col, layout.details_row)
+		end
+	end
+
+	vim.api.nvim_create_autocmd("VimResized", {
+		group = resize_augroup,
+		callback = resize_all_components,
+	})
+
+	local function expand_to_full_width()
+		local layout = recalculate_layout()
+
+		if active_components.search then
+			active_components.search.resize(layout.list_width, layout.search_height, layout.search_col, layout.search_row)
+		end
+
+		if active_components.package_list then
+			active_components.package_list.resize(layout.total_width, layout.installed_height, layout.installed_col, layout.installed_row)
+		end
+
+		if active_components.available_package_list then
+			active_components.available_package_list.resize(layout.total_width, layout.available_height, layout.available_col, layout.available_row)
 		end
 	end
 
@@ -112,22 +196,24 @@ function M.display_dual_pane(packages, opts)
 			active_components.details = nil
 		end
 
+		local layout = recalculate_layout()
+
 		if active_components.package_list then
-			active_components.package_list.resize(list_width, installed_height, installed_col, installed_row)
+			active_components.package_list.resize(layout.list_width, layout.installed_height, layout.installed_col, layout.installed_row)
 		end
 		if active_components.available_package_list then
-			active_components.available_package_list.resize(list_width, available_height, available_col, available_row)
+			active_components.available_package_list.resize(layout.list_width, layout.available_height, layout.available_col, layout.available_row)
 		end
 		if active_components.search then
-			active_components.search.resize(list_width, search_height, search_col, search_row)
+			active_components.search.resize(layout.list_width, layout.search_height, layout.search_col, layout.search_row)
 		end
 
 		local version_list = version_list_component.create({
 			package = pkg,
-			width = details_width,
-			height = versions_height,
-			col = versions_col,
-			row = versions_row,
+			width = layout.details_width,
+			height = layout.versions_height,
+			col = layout.versions_col,
+			row = layout.versions_row,
 			on_select = function(version, metadata)
 				if active_components.details then
 					active_components.details.set_loading(version)
@@ -189,10 +275,10 @@ function M.display_dual_pane(packages, opts)
 
 		local details = details_component.create({
 			package = pkg,
-			width = details_width,
-			height = details_height,
-			col = versions_col,
-			row = versions_row + versions_height + 1 + margin,
+			width = layout.details_width,
+			height = layout.details_height,
+			col = layout.details_col,
+			row = layout.details_row,
 			on_tab = function()
 				if active_components.search then
 					reset_border_colors("search")
@@ -429,13 +515,44 @@ function M.display_package_details_split(pkg, metadata)
 		end
 	end
 
+	local resize_augroup = vim.api.nvim_create_augroup("NuGetResizeSplit", { clear = true })
+
 	local function close_all_components()
+		vim.api.nvim_clear_autocmds({ group = resize_augroup })
+
 		for _, component in pairs(active_components) do
 			if component and component.close then
 				component.close()
 			end
 		end
 	end
+
+	local function resize_all_components()
+		local dims = utils.calculate_centered_dimensions(0.8, 0.8)
+		local w = dims.width
+		local h = dims.height
+		local c = dims.col
+		local r = dims.row
+		local vh = math.floor(h * 0.3)
+		local dh = h - vh - 1
+
+		if active_components.background and active_components.background.resize then
+			active_components.background.resize()
+		end
+
+		if active_components.version_list then
+			active_components.version_list.resize(w, vh, c, r)
+		end
+
+		if active_components.details then
+			active_components.details.resize(w, dh, c, r + vh + 1)
+		end
+	end
+
+	vim.api.nvim_create_autocmd("VimResized", {
+		group = resize_augroup,
+		callback = resize_all_components,
+	})
 
 	local version_list = version_list_component.create({
 		package = pkg,
