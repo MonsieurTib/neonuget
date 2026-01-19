@@ -141,4 +141,59 @@ function M.set_focused_border_color(win, focused)
 	end
 end
 
+-- Section navigation mapping: number key -> component name
+M.section_mappings = {
+	["1"] = "search",
+	["2"] = "package_list",
+	["3"] = "available_package_list",
+	["4"] = "version_list",
+	["5"] = "details",
+}
+
+function M.focus_section(component_name)
+	local active_components = _G.active_components
+	if not active_components then
+		return false
+	end
+
+	local component = active_components[component_name]
+	if not component or not component.win or not vim.api.nvim_win_is_valid(component.win) then
+		return false
+	end
+
+	for name, comp in pairs(active_components) do
+		if name ~= "background" and comp and comp.win and vim.api.nvim_win_is_valid(comp.win) then
+			M.set_focused_border_color(comp.win, false)
+		end
+	end
+
+	M.set_focused_border_color(component.win, true)
+	if component.focus then
+		component.focus()
+	elseif component.activate then
+		component.activate()
+	else
+		vim.api.nvim_set_current_win(component.win)
+	end
+
+	return true
+end
+
+-- Set up section navigation keymaps on a buffer
+function M.setup_section_navigation(buf)
+	if not buf or not vim.api.nvim_buf_is_valid(buf) then
+		return
+	end
+
+	for key, component_name in pairs(M.section_mappings) do
+		vim.api.nvim_buf_set_keymap(buf, "n", key, "", {
+			noremap = true,
+			silent = true,
+			callback = function()
+				M.focus_section(component_name)
+			end,
+		})
+	end
+end
+
 return M
