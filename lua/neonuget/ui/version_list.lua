@@ -95,11 +95,32 @@ function M.create(opts)
 				data = version_obj,
 			})
 
+			local version_split = {}
+			local count = 1
+			for str in string.gmatch(version_text, "[^%.]+") do
+				version_split[count] = tonumber(str)
+				count = count + 1
+			end
+
+			table.insert(standardized_versions, {
+				text = version_text,
+				data = version_obj,
+				version_split = version_split,
+			})
+
 			::continue::
 		end
 
 		table.sort(standardized_versions, function(a, b)
-			return a.text > b.text
+			for index, value in ipairs(a.version_split) do
+				if b.version_split[index] == nil then
+					return true
+				end
+				if value ~= b.version_split[index] then
+					return value > b.version_split[index]
+				end
+			end
+			return false
 		end)
 
 		for i, v in ipairs(standardized_versions) do
