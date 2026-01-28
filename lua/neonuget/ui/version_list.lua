@@ -90,11 +90,6 @@ function M.create(opts)
 				goto continue
 			end
 
-			table.insert(standardized_versions, {
-				text = version_text,
-				data = version_obj,
-			})
-
 			local version_split = {}
 			local count = 1
 			for str in string.gmatch(version_text, "[^%.]+") do
